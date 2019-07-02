@@ -19,7 +19,7 @@ func main() {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		list := strings.Split(line, " ")
+		list := strings.Split(line, "gamelab-MS-7A68")
 		for i, substr := range list {
 			println(substr)
 		}
