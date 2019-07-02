@@ -18,6 +18,7 @@ func main() {
 	cnt := 1
     for scanner.Scan() {
 		fmt.Println(scanner.Text())
+		fmt.Println(cnt)
 		cnt++
     }
 
