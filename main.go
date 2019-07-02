@@ -4,7 +4,8 @@ import (
 	"bufio"
     "fmt"
     "log"
-    "os"
+	"os"
+	"strings"
 )
 
 func main() {
@@ -15,11 +16,13 @@ func main() {
     defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	cnt := 1
-    for scanner.Scan() {
-		fmt.Println(scanner.Text())
-		fmt.Println(cnt)
-		cnt++
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		list := strings.Split(line, " ")
+		for i, substr := range list {
+			println(substr)
+		}
     }
 
     if err := scanner.Err(); err != nil {
