@@ -1,20 +1,27 @@
 package main
 
 import (
+	"bufio"
     "fmt"
-    "os/exec"
+    "log"
+    "os"
 )
 
 func main() {
-    cmd := "cat /var/log/iptables.log"
-    out, err := exec.Command("bash", "-c", cmd).Output()
-    if err == nil {
-		// fmt.Println(string(out))
-		var host string
-		var timestmp string
-		var etw string
-		while(fmt.Sscanf(string(out), "%s gamelab-MS-7A68 %s SRC=%s DST%s", &timestmp, &etw, &host, &etw)){
-			fmt.Println(timestmp, host)
-		}
+    file, err := os.Open("/var/log/iptables.log")
+    if err != nil {
+        log.Fatal(err)
     }
+    defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	cnt := 1
+    for scanner.Scan() {
+		fmt.Println(scanner.Text())
+		cnt++
+    }
+
+    if err := scanner.Err(); err != nil {
+        log.Fatal(err)
+	}
 }
