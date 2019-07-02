@@ -9,6 +9,6 @@ func main() {
     cmd := "cat /var/log/iptables.log"
     out, err := exec.Command("bash", "-c", cmd).Output()
     if err == nil {
-        fmt.Print(out)
+        fmt.Println(string(out))
     }
 }
