@@ -1,0 +1,7 @@
+      Local time: Wed 2019-07-03 15:02:03 CST
+  Universal time: Wed 2019-07-03 07:02:03 UTC
+        RTC time: Wed 2019-07-03 07:02:03
+       Time zone: Asia/Taipei (CST, +0800)
+ Network time on: yes
+NTP synchronized: yes
+ RTC in local TZ: no

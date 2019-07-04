@@ -41,6 +41,8 @@ func strtoMonth(str string) int{
 	return 1
 }
 
+const ntpPeriodMAX = 5
+
 func main() {
     file, err := os.Open("iptables.log")
     if err != nil {
@@ -48,6 +50,8 @@ func main() {
     }
     defer file.Close()
 
+	var watchList[] string
+	watchList = append(watchList, "140.118.127.164")
 	scanner := bufio.NewScanner(file)
 	ipWithLastVisit := make(map[string]time.Duration)
 	tname, toffset := time.Now().Zone()
@@ -72,9 +76,16 @@ func main() {
 		ipWithLastVisit[key] = diff
 	}
 	
-	for ip := range ipWithLastVisit {
-		fmt.Println("ip : ", ip, "\tlast entry was ", int(ipWithLastVisit[ip].Hours()), " Hours ", int(ipWithLastVisit[ip].Minutes()) % 60, " Minutes ", int(ipWithLastVisit[ip].Seconds()) % 60, "Seconds ago")
+	for ip := range watchList {
+		if ipWithLastVisit[watchList[ip]].Minutes() > ntpPeriodMAX{
+			fmt.Print("ip : ", watchList[ip], "\tlast entry was ", int(ipWithLastVisit[watchList[ip]].Hours()), "\tHours\t", int(ipWithLastVisit[watchList[ip]].Minutes()) % 60, "\tMinutes\t", int(ipWithLastVisit[watchList[ip]].Seconds()) % 60, "\tSeconds ago")
+			fmt.Println(" alert!")
+		} else {
+			fmt.Println()
+		}
 	}
+
+
 
     if err := scanner.Err(); err != nil {
         log.Fatal(err)
