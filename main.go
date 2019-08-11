@@ -1,47 +1,41 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
+    "bufio"
+    "fmt"
     "log"
-	"os"
-	"strings"
-	"time"
-	"strconv"
+    "os"
+    "strconv"
+    "strings"
+    "time"
+    "os/exec"
+    // "net/http"
 )
 
-func strtoMonth(str string) int{
-	switch str {
-	case "Jan":
-		return 1
-	case "Feb":
-		return 2
-	case "Mar":
-		return 3
-	case "Apr":
-		return 4
-	case "May":
-		return 5
-	case "Jun":
-		return 6
-	case "Jul":
-		return 7
-	case "Aug":
-		return 8
-	case "Sep":
-		return 9
-	case "Oct":
-		return 10
-	case "Nov":
-		return 11
-	case "Dec":
-		return 12
-	}
-	fmt.Println("not found Month : " + str)
-	return 1
+const ntpPeriodMAX = 5
+
+func getLastBootTime() string {
+    out, err := exec.Command("who", "-b").Output()
+    if err != nil {
+            panic(err)
+    }
+    t := strings.TrimSpace(string(out))
+    t = strings.TrimPrefix(t, "system boot")
+    t = strings.TrimSpace(t)
+    return t
 }
 
-const ntpPeriodMAX = 5
+func getTimezone() string {
+    out, err := exec.Command("date", "+%Z").Output()
+    if err != nil {
+            panic(err)
+    }
+    return strings.TrimSpace(string(out))
+}
+
+func getLastSystemBootTime() (time.Time, error) {
+    return time.Parse(`2006-01-02 15:04MST`, getLastBootTime()+getTimezone())
+}
 
 func main() {
     file, err := os.Open("iptables.log")
@@ -50,44 +44,39 @@ func main() {
     }
     defer file.Close()
 
-	var watchList[] string
+    var watchList []string
 	watchList = append(watchList, "140.118.127.164")
-	scanner := bufio.NewScanner(file)
-	ipWithLastVisit := make(map[string]time.Duration)
-	tname, toffset := time.Now().Zone()
-	tyear := time.Now().Year()
+    watchList = append(watchList, "192.168.80.1")	
+    scanner := bufio.NewScanner(file)
+    ipWithLastVisit := make(map[string]time.Duration)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		list := strings.Split(line, " ")
-		key := string(list[10][4:])
-		// val := string(list[0] + "-" + list[2] + "-"  + list[3])
-		hms := strings.Split(string(list[3]), ":")
-		d, _ := strconv.Atoi(list[2])
-		h, _ := strconv.Atoi(hms[0])
-		m, _ := strconv.Atoi(hms[1])
-		s, _ := strconv.Atoi(hms[2])
-		
-		lastEntry := time.Date(tyear, time.Month(strtoMonth(list[0])), d, h, m, s,0, time.FixedZone(tname, toffset))
-		now := time.Now()
+    for scanner.Scan() {
+        line := scanner.Text()
+        list := strings.Split(line, " ")
+        epch := strings.Replace(list[6][1:], "]", "", -1)
+        epchfloat, _ := strconv.ParseFloat(epch, 64)
+        key := string(list[10][4:])
 
-		diff := now.Sub(lastEntry)
+        lastEntry := time.Unix(int64(epchfloat)+time.Now().Unix(), int64(100000*(epchfloat-float64(int64(epchfloat)))))
+        now := time.Now()
 
-		ipWithLastVisit[key] = diff
-	}
-	
-	for ip := range watchList {
-		if ipWithLastVisit[watchList[ip]].Minutes() > ntpPeriodMAX{
-			fmt.Print("ip : ", watchList[ip], "\tlast entry was ", int(ipWithLastVisit[watchList[ip]].Hours()), "\tHours\t", int(ipWithLastVisit[watchList[ip]].Minutes()) % 60, "\tMinutes\t", int(ipWithLastVisit[watchList[ip]].Seconds()) % 60, "\tSeconds ago")
-			fmt.Println(" alert!")
-		} else {
-			fmt.Println()
-		}
-	}
+        diff := now.Sub(lastEntry)
 
+        ipWithLastVisit[key] = diff
+    }
 
+    for ip := range watchList {
+        if ipWithLastVisit[watchList[ip]].Minutes() > ntpPeriodMAX {
+            fmt.Print("ip : ", watchList[ip], "\tlast entry was ", int(ipWithLastVisit[watchList[ip]].Hours()), "\tHours\t", int(ipWithLastVisit[watchList[ip]].Minutes())%60, "\tMinutes\t", int(ipWithLastVisit[watchList[ip]].Seconds())%60, "\tSeconds ago")
+            fmt.Println(" alert!")
+        } else {
+            fmt.Println()
+        }
+    }
+    
+    
 
     if err := scanner.Err(); err != nil {
         log.Fatal(err)
-	}
+    }
 }
