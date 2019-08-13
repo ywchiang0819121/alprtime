@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"bytes"
-	"fmt"
 )
 
 
@@ -29,7 +28,7 @@ func getLastBootTime() string {
 
 func getLastSystemBootTime() (time.Time, error) {
 	// "2019-08-11 18:59"
-    // return time.ParseInLocation(`2006-01-02 15:04`, getLastBootTime(), time.Local)	
+    // return time.ParseInLocation(`2006-01-02 15:04`, getLastBootTime(), time.Local)
     return time.ParseInLocation(`2006-01-02 15:04`, "2019-08-11 18:59", time.Local)
 }
 
@@ -49,7 +48,7 @@ type Log struct {
 func main() {
 	var ntplog Log
 	ntplog.Token = "Fz7Brl6TGuhe3dI4B3Wfk1cXp4oqua44LrEKW52juOYiU32NOkdnWfJxQ3pvr9F7IoX3wAL6xeMKWcTQcPtxgjt5lV8a23U96zqU"
-	ntplog.Server_time = time.Now().String()
+	ntplog.Server_time = strings.Split(time.Now().String(), " +")[0]
 	byteStream, _ := ioutil.ReadFile("alpr.conf")
 	_ = json.Unmarshal(byteStream, &ntplog.Logs)
 
@@ -60,7 +59,7 @@ func main() {
     defer file.Close()
 	
     scanner := bufio.NewScanner(file)
-    ipWithLastVisit := make(map[string]time.Time)
+    ipWithLastVisit := make(map[string]string)
 
 	lastBootTime, _ := getLastSystemBootTime()
 
@@ -74,7 +73,9 @@ func main() {
 	
 			lastEntry := time.Unix(lastBootTime.Unix()+int64(epchfloat), int64(100000*(epchfloat-float64(int64(epchfloat)))))
 			if lastBootTime.Before(time.Now()) {
-				ipWithLastVisit[key] = lastEntry
+				lastEntryStr := lastEntry.String()
+				lastEntryStr = strings.Split(lastEntryStr, " +")[0]
+				ipWithLastVisit[key] = lastEntryStr
 			}
 		}
     }
@@ -82,18 +83,17 @@ func main() {
 	cnt := 0
     for _,logger := range ntplog.Logs {
 		if timestamp, ok :=ipWithLastVisit[logger.Ip]; ok{
-			ntplog.Logs[cnt].Time = timestamp.String()
+			ntplog.Logs[cnt].Time = timestamp
 			cnt++
 		}
 	}
 	ntplog.Logs = ntplog.Logs[:cnt]
 	
 	byteStream, _ = json.Marshal(ntplog)
-	fmt.Println(string(byteStream))
 	resp, err := http.Post("http://140.118.127.165:82/api/v1/ntp_logs", "application/json", bytes.NewBuffer(byteStream))
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	fmt.Println(resp)
+	log.Println(resp)
 }
