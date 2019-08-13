@@ -2,17 +2,19 @@ package main
 
 import (
     "bufio"
-    "fmt"
     "log"
     "os"
     "strconv"
     "strings"
     "time"
-    "os/exec"
-    // "net/http"
+	"os/exec"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"bytes"
+	"fmt"
 )
 
-const ntpPeriodMAX = 5
 
 func getLastBootTime() string {
     out, err := exec.Command("who", "-b").Output()
@@ -25,58 +27,68 @@ func getLastBootTime() string {
     return t
 }
 
-func getTimezone() string {
-    out, err := exec.Command("date", "+%Z").Output()
-    if err != nil {
-            panic(err)
-    }
-    return strings.TrimSpace(string(out))
+func getLastSystemBootTime() (time.Time, error) {
+	// "2019-08-11 18:59"
+    // return time.ParseInLocation(`2006-01-02 15:04`, getLastBootTime(), time.Local)	
+    return time.ParseInLocation(`2006-01-02 15:04`, "2019-08-11 18:59", time.Local)
 }
 
-func getLastSystemBootTime() (time.Time, error) {
-    return time.Parse(`2006-01-02 15:04MST`, getLastBootTime()+getTimezone())
+type Device struct {
+	Ip string 					`json:"serial_number"`
+	Ipcams_id int				`json:"ipcams_id"`
+	Recognizing_server_id int	`json:"recognizing_servers_id"`
+	Time string					`json:"time"`
+}
+
+type Log struct {
+	Token		string		`json:"token"`
+	Server_time	string		`json:"server_time"`
+	Logs		[]Device	`json:"logs"`
 }
 
 func main() {
+	var ntplog Log
+	ntplog.Token = "Fz7Brl6TGuhe3dI4B3Wfk1cXp4oqua44LrEKW52juOYiU32NOkdnWfJxQ3pvr9F7IoX3wAL6xeMKWcTQcPtxgjt5lV8a23U96zqU"
+	ntplog.Server_time = time.Now().String()
+	byteStream, _ := ioutil.ReadFile("alpr.conf")
+	_ = json.Unmarshal(byteStream, &ntplog.Logs)
+
     file, err := os.Open("iptables.log")
     if err != nil {
         log.Fatal(err)
     }
     defer file.Close()
-
-    var watchList []string
-	watchList = append(watchList, "140.118.127.164")
-    watchList = append(watchList, "192.168.80.1")	
+	
     scanner := bufio.NewScanner(file)
-    ipWithLastVisit := make(map[string]time.Duration)
+    ipWithLastVisit := make(map[string]time.Time)
+
+	lastBootTime, _ := getLastSystemBootTime()
 
     for scanner.Scan() {
         line := scanner.Text()
-        list := strings.Split(line, " ")
-        epch := strings.Replace(list[6][1:], "]", "", -1)
-        epchfloat, _ := strconv.ParseFloat(epch, 64)
-        key := string(list[10][4:])
-
-        lastEntry := time.Unix(int64(epchfloat)+time.Now().Unix(), int64(100000*(epchfloat-float64(int64(epchfloat)))))
-        now := time.Now()
-
-        diff := now.Sub(lastEntry)
-
-        ipWithLastVisit[key] = diff
+		list := strings.Split(line, "[")
+		epch := strings.Trim(strings.Split(list[1], "]")[0], " ")
+		epchfloat, err := strconv.ParseFloat(epch, 64)
+		if (err == nil && strings.Contains(line, "[ntp]")){
+			key := string(strings.Split(strings.Split(list[2], "SRC=")[1], " ")[0])
+	
+			lastEntry := time.Unix(lastBootTime.Unix()+int64(epchfloat), int64(100000*(epchfloat-float64(int64(epchfloat)))))
+			if lastBootTime.Before(time.Now()) {
+				ipWithLastVisit[key] = lastEntry
+			}
+		}
     }
 
-    for ip := range watchList {
-        if ipWithLastVisit[watchList[ip]].Minutes() > ntpPeriodMAX {
-            fmt.Print("ip : ", watchList[ip], "\tlast entry was ", int(ipWithLastVisit[watchList[ip]].Hours()), "\tHours\t", int(ipWithLastVisit[watchList[ip]].Minutes())%60, "\tMinutes\t", int(ipWithLastVisit[watchList[ip]].Seconds())%60, "\tSeconds ago")
-            fmt.Println(" alert!")
-        } else {
-            fmt.Println()
-        }
-    }
-    
-    
+    for i,logger := range ntplog.Logs {
+		ntplog.Logs[i].Time = ipWithLastVisit[logger.Ip].String()
+	}
+	
+	byteStream, _ = json.Marshal(ntplog)
+	fmt.Println(string(byteStream))
+	resp, err := http.Post("http://140.118.127.165:82/api/v1/ntp_logs", "application/json", bytes.NewBuffer(byteStream))
+	if err != nil {
+		log.Fatalln(err)
+	}
 
-    if err := scanner.Err(); err != nil {
-        log.Fatal(err)
-    }
+	fmt.Println(resp)
 }
