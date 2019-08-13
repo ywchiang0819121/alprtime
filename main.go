@@ -79,9 +79,14 @@ func main() {
 		}
     }
 
-    for i,logger := range ntplog.Logs {
-		ntplog.Logs[i].Time = ipWithLastVisit[logger.Ip].String()
+	cnt := 0
+    for _,logger := range ntplog.Logs {
+		if timestamp, ok :=ipWithLastVisit[logger.Ip]; ok{
+			ntplog.Logs[cnt].Time = timestamp.String()
+			cnt++
+		}
 	}
+	ntplog.Logs = ntplog.Logs[:cnt]
 	
 	byteStream, _ = json.Marshal(ntplog)
 	fmt.Println(string(byteStream))
